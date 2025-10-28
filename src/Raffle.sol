@@ -11,6 +11,7 @@ contract Raffle is VRFConsumerBaseV2Plus {
     error Raffle__notEnoughEathToRaffle();
     error Raffle__transferFailed();
     error Raffle__raffleNotOpen();
+    error Raffle__UpkeepNotNeeded(uint256 balance, uint256 playerLength, uint256 raffleState);
     // type declaration // enum
     enum RaffleState {
         OPEN, // 0
@@ -63,10 +64,27 @@ contract Raffle is VRFConsumerBaseV2Plus {
         s_players.push(payable(msg.sender));
         emit RaffleEntered(msg.sender);
     }
-    function picckWinner() external {
-        if ((block.timestamp - s_lasttimeStamp) < i_interval) {
-            revert();
+
+    // automation 
+
+    function checkUpkeep ( bytes memory /* checkData */) public view returns ( bool upkeepNeeded, bytes memory /* performData */)
+    {
+        bool timeHasPassed = (block.timestamp - s_lasttimeStamp) >= i_interval ;
+        bool isOPen = s_raffleState == RaffleState.OPEN;
+        bool hasBalance = address(this).balance > 0 ;
+        bool hasPlayers = s_players.length > 0 ;
+        upkeepNeeded = timeHasPassed && isOPen && hasBalance && hasPlayers ;
+        return (upkeepNeeded , "");
+        
+    }
+     
+    function performUpkeep( bytes calldata /* performData */) external {
+
+      (bool upkeepNeeded ,) = checkUpkeep("");
+      if(!upkeepNeeded) {
+            revert Raffle__UpkeepNotNeeded(address(this).balance, s_players.length, uint256(s_raffleState) );
         }
+
         s_raffleState = RaffleState.CALCULATING;
         VRFV2PlusClient.RandomWordsRequest memory request = VRFV2PlusClient
             .RandomWordsRequest({
@@ -80,7 +98,7 @@ contract Raffle is VRFConsumerBaseV2Plus {
                     VRFV2PlusClient.ExtraArgsV1({nativePayment: false})
                 )
             });
-        uint256 requestId = s_vrfCoordinator.requestRandomWords(request);
+         s_vrfCoordinator.requestRandomWords(request);
 
         //         requestId = s_vrfCoordinator.requestRandomWords(
         //     VRFV2PlusClient.RandomWordsRequest({
@@ -98,7 +116,7 @@ contract Raffle is VRFConsumerBaseV2Plus {
     }
 
     function fulfillRandomWords(
-        uint256 requestId,
+        uint256 /*requestId */,
         uint256[] calldata randomWords
     ) internal virtual override {
         uint256 indexOfWinner = randomWords[0] % s_players.length;
