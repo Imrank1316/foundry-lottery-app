@@ -21,7 +21,7 @@ contract DeployRaffle is Script {
             config.gasLane,
             config.subscriptionId,
             config.callbackGasLimit
-         )
+         );
         vm.stopBroadcast();
         return ( raffle, helperConfig);
     }
